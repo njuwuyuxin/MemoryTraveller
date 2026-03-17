@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Corridor Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <canvas id="cosmos"></canvas>
+  <canvas id="cosmos-front"></canvas>
+
+  <div class="vignette"></div>
+
+  <header class="hud">
+    <p class="eyebrow">Memory Traveller</p>
+    <h1>记忆长廊</h1>
+    <p class="hint">滚轮前进 / 后退，沿着时间行走</p>
+  </header>
+
+  <aside class="particle-panel" aria-label="Particle Controls">
+    <h2>Particle Tuning</h2>
+    <label><span>Density</span><input id="ctl-density" type="range" min="0.5" max="2.2" step="0.05" value="1.0"><output id="val-density">1.00</output></label>
+    <label><span>Size</span><input id="ctl-size" type="range" min="0.7" max="2.2" step="0.05" value="1.0"><output id="val-size">1.00</output></label>
+    <label><span>Opacity</span><input id="ctl-alpha" type="range" min="0.6" max="2.2" step="0.05" value="1.0"><output id="val-alpha">1.00</output></label>
+    <label><span>Speed</span><input id="ctl-speed" type="range" min="0.6" max="2.0" step="0.05" value="1.0"><output id="val-speed">1.00</output></label>
+    <label><span>Screen Fill</span><input id="ctl-fill" type="range" min="0.0" max="1.4" step="0.05" value="1.1"><output id="val-fill">1.10</output></label>
+    <label><span>Ambient</span><input id="ctl-ambient" type="range" min="0.4" max="2.0" step="0.05" value="1.0"><output id="val-ambient">1.00</output></label>
+    <label><span>Card Max</span><input id="ctl-cardmax" type="range" min="600" max="4200" step="20" value="2200"><output id="val-cardmax">2200</output></label>
+  </aside>
+
+  <main id="corridor" aria-label="3D Memory Corridor"></main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
