@@ -76,6 +76,8 @@ const state = {
   nearClipZ: -880,
   spawnHalfW: window.innerWidth * 0.52,
   spawnHalfH: window.innerHeight * 0.72,
+  flowHalfW: window.innerWidth * 0.72,
+  flowHalfH: window.innerHeight * 0.74,
   laneBase: Math.min(560, window.innerWidth * 0.45),
   targetTravel: 0,
   travel: 0,
@@ -150,9 +152,15 @@ function projectWorld(x, y, z) {
   };
 }
 
-function sampleRectCoord(power) {
-  const sign = Math.random() < 0.5 ? -1 : 1;
-  return sign * Math.pow(Math.random(), power);
+function randomSign() {
+  return Math.random() < 0.5 ? -1 : 1;
+}
+
+function sampleAxisWithEdge(innerExtent, edgeStart, edgeEnd, edgeChance) {
+  if (Math.random() < edgeChance) {
+    return randomSign() * rand(edgeStart, edgeEnd);
+  }
+  return rand(-innerExtent, innerExtent);
 }
 
 const memoryMeta = memories.map((memory, index) => ({
@@ -235,17 +243,15 @@ function syncVisibleCards() {
 }
 
 function spawnFlowParticle(p, mode) {
-  const band = Math.random();
-  if (band < 0.68) {
-    p.rx = sampleRectCoord(0.65) * 0.92;
-    p.ry = sampleRectCoord(0.74) * 0.86;
-  } else {
-    p.rx = sampleRectCoord(0.9) * 1.45;
-    p.ry = sampleRectCoord(0.9) * 1.2;
+  p.rx = sampleAxisWithEdge(0.98, 0.94, 1.44, 0.3);
+  p.ry = sampleAxisWithEdge(0.9, 0.82, 1.18, 0.24);
+  if (Math.random() < 0.08) {
+    p.rx = rand(-1.3, 1.3);
+    p.ry = rand(-1.08, 1.08);
   }
-  const nx = Math.min(1.6, Math.abs(p.rx) / 0.9);
-  const ny = Math.min(1.6, Math.abs(p.ry) / 0.95);
-  p.core = Math.exp(-(nx * 1.2 + ny * 0.9) * 1.8);
+  const nx = Math.min(1.8, Math.abs(p.rx) / 1.06);
+  const ny = Math.min(1.8, Math.abs(p.ry) / 0.96);
+  p.core = Math.exp(-(nx * 0.98 + ny * 0.98) * 1.75);
   p.phase = rand(0, Math.PI * 2);
   p.curveX = rand(-36, 36);
   p.curveY = rand(-24, 24);
@@ -256,8 +262,8 @@ function spawnFlowParticle(p, mode) {
   p.hue = rand(192, 320);
   p.fillColor = `hsl(${p.hue} 92% 79%)`;
   p.strokeColor = `hsl(${p.hue} 88% 72%)`;
-  p.farJitterX = rand(-state.spawnHalfW * 0.2, state.spawnHalfW * 0.2);
-  p.farJitterY = rand(-state.spawnHalfH * 0.26, state.spawnHalfH * 0.26);
+  p.farJitterX = rand(-state.flowHalfW * 0.2, state.flowHalfW * 0.2);
+  p.farJitterY = rand(-state.flowHalfH * 0.26, state.flowHalfH * 0.26);
   const edge = rand(0, 0.03);
 
   if (mode === "far") p.depth = 1 - edge;
@@ -287,8 +293,12 @@ function spawnAmbientParticle(p) {
 }
 
 function spawnForegroundParticle(p, mode) {
-  p.rx = sampleRectCoord(0.8) * 1.22;
-  p.ry = sampleRectCoord(0.84) * 1.15;
+  p.rx = sampleAxisWithEdge(1.0, 0.94, 1.34, 0.26);
+  p.ry = sampleAxisWithEdge(0.92, 0.82, 1.14, 0.2);
+  if (Math.random() < 0.08) {
+    p.rx = rand(-1.24, 1.24);
+    p.ry = rand(-1.02, 1.02);
+  }
   p.depth = mode === "near" ? rand(0.0, 0.08) : rand(0.14, 0.6);
   p.alpha = rand(0.07, 0.24);
   p.size = rand(0.5, 1.65);
@@ -406,6 +416,8 @@ function resize() {
   state.baseZ = state.width < 900 ? 980 : 1120;
   state.photoFarZ = state.width < 900 ? 5000 : 5600;
   state.photoNearZ = state.width < 900 ? 180 : 220;
+  state.flowHalfW = state.width * (state.width < 900 ? 0.76 : 0.66);
+  state.flowHalfH = state.height * (state.width < 900 ? 0.84 : 0.7);
   const shortSide = Math.min(state.width, state.height);
   state.cursorRadiusFlow = clamp(shortSide * 0.25, 130, 280);
   state.cursorRadiusAmbient = clamp(shortSide * 0.19, 100, 210);
@@ -517,18 +529,20 @@ function drawFlowParticles(dt) {
 
     const progress = 1 - p.depth;
     const z = state.photoNearZ + (state.photoFarZ - state.photoNearZ) * p.depth;
-    const wx = p.rx * state.spawnHalfW
+    const wx = p.rx * state.flowHalfW
       + p.curveX * Math.sin(progress * 5.8 + p.phase) * progress
-      + p.driftX * state.spawnHalfW * progress;
-    const wy = p.ry * state.spawnHalfH
+      + p.driftX * state.flowHalfW * progress;
+    const wy = p.ry * state.flowHalfH
       + p.curveY * Math.cos(progress * 5.1 + p.phase) * progress
-      + p.driftY * state.spawnHalfH * progress;
-    const fillSpread = 1 + state.userFill * (0.38 + Math.pow(progress, 1.18) * 1.12);
+      + p.driftY * state.flowHalfH * progress;
+    const fillSpread = 1 + state.userFill * (0.18 + Math.pow(progress, 1.22) * 1.08);
+    const convergeX = 0.76 + 0.24 * easeOutCubic(progress);
+    const convergeY = 0.72 + 0.28 * easeOutCubic(progress);
 
     const farWeight = Math.pow(p.depth, 2.2);
     const proj = projectWorld(
-      (wx + p.farJitterX * farWeight) * fillSpread,
-      (wy + p.farJitterY * farWeight) * fillSpread,
+      (wx + p.farJitterX * farWeight) * fillSpread * convergeX,
+      (wy + p.farJitterY * farWeight) * fillSpread * convergeY,
       z
     );
 
@@ -662,9 +676,9 @@ function drawForegroundParticles(dt) {
     }
 
     const z = 90 + 1150 * p.depth;
-    const wx = p.rx * state.spawnHalfW * 1.55 + Math.sin((1 - p.depth) * 4.8 + p.phase) * 18;
-    const wy = p.ry * state.spawnHalfH * 1.45 + Math.cos((1 - p.depth) * 4.2 + p.phase) * 14;
-    const fillSpread = 1 + state.userFill * Math.pow(1 - p.depth, 1.15);
+    const wx = p.rx * state.flowHalfW * 1.55 + Math.sin((1 - p.depth) * 4.8 + p.phase) * 18;
+    const wy = p.ry * state.flowHalfH * 1.45 + Math.cos((1 - p.depth) * 4.2 + p.phase) * 14;
+    const fillSpread = 1 + state.userFill * (0.12 + Math.pow(1 - p.depth, 1.18) * 0.92);
     const proj = projectWorld(wx * fillSpread, wy * fillSpread, z);
 
     const progress = 1 - p.depth;
