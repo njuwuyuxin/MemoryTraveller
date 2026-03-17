@@ -56,6 +56,14 @@ const controlValues = {
   cursorOut: document.getElementById("val-cursorout")
 };
 
+const sliderConfig = (() => {
+  const root = window.MemoryTravellerConfig;
+  if (!root || typeof root !== "object" || !root.sliders || typeof root.sliders !== "object") {
+    return {};
+  }
+  return root.sliders;
+})();
+
 const stars = [];
 const nebula = [];
 const flowParticles = [];
@@ -124,6 +132,17 @@ function rand(min, max) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function sliderConfiguredValue(key, element) {
+  if (!element) return null;
+  if (!(key in sliderConfig)) return null;
+  const raw = Number(sliderConfig[key]);
+  if (!Number.isFinite(raw)) return null;
+  const min = Number(element.min);
+  const max = Number(element.max);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return raw;
+  return clamp(raw, min, max);
 }
 
 function easeOutCubic(t) {
@@ -722,6 +741,12 @@ function onPointerLeave() {
 
 function bindControls() {
   if (!controls.density) return;
+  Object.entries(controls).forEach(([key, element]) => {
+    const configured = sliderConfiguredValue(key, element);
+    if (configured !== null) {
+      element.value = `${configured}`;
+    }
+  });
   const updateLabels = () => {
     controlValues.density.textContent = Number(controls.density.value).toFixed(2);
     controlValues.size.textContent = Number(controls.size.value).toFixed(2);
