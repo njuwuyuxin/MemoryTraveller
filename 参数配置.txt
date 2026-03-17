@@ -1,0 +1,2 @@
+fade start = 740
+fade rate = 1.60

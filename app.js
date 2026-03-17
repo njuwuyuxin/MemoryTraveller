@@ -29,7 +29,9 @@ const controls = {
   speed: document.getElementById("ctl-speed"),
   fill: document.getElementById("ctl-fill"),
   ambient: document.getElementById("ctl-ambient"),
-  cardMax: document.getElementById("ctl-cardmax")
+  cardMax: document.getElementById("ctl-cardmax"),
+  fadeStart: document.getElementById("ctl-fadestart"),
+  fadeRate: document.getElementById("ctl-faderate")
 };
 
 const controlValues = {
@@ -39,7 +41,9 @@ const controlValues = {
   speed: document.getElementById("val-speed"),
   fill: document.getElementById("val-fill"),
   ambient: document.getElementById("val-ambient"),
-  cardMax: document.getElementById("val-cardmax")
+  cardMax: document.getElementById("val-cardmax"),
+  fadeStart: document.getElementById("val-fadestart"),
+  fadeRate: document.getElementById("val-faderate")
 };
 
 const stars = [];
@@ -75,6 +79,8 @@ const state = {
   userFill: 1.1,
   userAmbient: 1,
   userCardMax: 2200,
+  userFadeStart: 1200,
+  userFadeRate: 1.4,
   maxTravel: 0,
   pointerX: 0,
   pointerY: 0
@@ -506,9 +512,14 @@ function renderCards() {
 
     const farT = clamp((state.photoFarZ - 260 - z) / 3500, 0, 1);
     const farFade = 0.08 + 0.92 * easeOutCubic(farT);
-    let opacity = clamp(farFade, 0.08, 1);
-    if (z < state.photoNearZ + 520) {
-      opacity = Math.max(0.3, opacity);
+    let opacity = clamp(farFade, 0, 1);
+
+    const fadeStartZ = state.nearClipZ + state.userFadeStart;
+    if (z < fadeStartZ) {
+      const fadeSpan = Math.max(36, state.userFadeStart / Math.max(0.2, state.userFadeRate));
+      const t = clamp((fadeStartZ - z) / fadeSpan, 0, 1);
+      const nearFade = 1 - Math.pow(t, 1.15);
+      opacity *= clamp(nearFade, 0, 1);
     }
 
     const approxHeight = width / 1.45 + 26;
@@ -604,6 +615,8 @@ function bindControls() {
     controlValues.fill.textContent = Number(controls.fill.value).toFixed(2);
     controlValues.ambient.textContent = Number(controls.ambient.value).toFixed(2);
     controlValues.cardMax.textContent = `${Math.round(Number(controls.cardMax.value))}`;
+    controlValues.fadeStart.textContent = `${Math.round(Number(controls.fadeStart.value))}`;
+    controlValues.fadeRate.textContent = Number(controls.fadeRate.value).toFixed(2);
   };
   const apply = () => {
     state.userDensity = Number(controls.density.value);
@@ -613,6 +626,8 @@ function bindControls() {
     state.userFill = Number(controls.fill.value);
     state.userAmbient = Number(controls.ambient.value);
     state.userCardMax = Number(controls.cardMax.value);
+    state.userFadeStart = Number(controls.fadeStart.value);
+    state.userFadeRate = Number(controls.fadeRate.value);
     updateLabels();
     initParticles();
   };
