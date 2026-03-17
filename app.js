@@ -32,7 +32,11 @@ const controls = {
   cardMax: document.getElementById("ctl-cardmax"),
   fadeStart: document.getElementById("ctl-fadestart"),
   fadeRate: document.getElementById("ctl-faderate"),
-  glowBorder: document.getElementById("ctl-glowborder")
+  glowBorder: document.getElementById("ctl-glowborder"),
+  cursorRange: document.getElementById("ctl-cursorrange"),
+  cursorPull: document.getElementById("ctl-cursorpull"),
+  cursorIn: document.getElementById("ctl-cursorin"),
+  cursorOut: document.getElementById("ctl-cursorout")
 };
 
 const controlValues = {
@@ -45,7 +49,11 @@ const controlValues = {
   cardMax: document.getElementById("val-cardmax"),
   fadeStart: document.getElementById("val-fadestart"),
   fadeRate: document.getElementById("val-faderate"),
-  glowBorder: document.getElementById("val-glowborder")
+  glowBorder: document.getElementById("val-glowborder"),
+  cursorRange: document.getElementById("val-cursorrange"),
+  cursorPull: document.getElementById("val-cursorpull"),
+  cursorIn: document.getElementById("val-cursorin"),
+  cursorOut: document.getElementById("val-cursorout")
 };
 
 const stars = [];
@@ -84,9 +92,22 @@ const state = {
   userFadeStart: 1200,
   userFadeRate: 1.4,
   userGlowBorder: 20,
+  userCursorRange: 1,
+  userCursorPull: 0.55,
+  userCursorIn: 1,
+  userCursorOut: 1,
   maxTravel: 0,
   pointerX: 0,
-  pointerY: 0
+  pointerY: 0,
+  pointerScreenX: window.innerWidth * 0.5,
+  pointerScreenY: window.innerHeight * 0.5,
+  pointerActive: false,
+  cursorRadiusFlow: 220,
+  cursorRadiusAmbient: 170,
+  cursorRadiusFront: 180,
+  cursorPullFlow: 26,
+  cursorPullAmbient: 14,
+  cursorPullFront: 18
 };
 
 const perf = {
@@ -245,6 +266,8 @@ function spawnFlowParticle(p, mode) {
 
   p.prevX = Number.NaN;
   p.prevY = Number.NaN;
+  p.cursorOffsetX = 0;
+  p.cursorOffsetY = 0;
   return p;
 }
 
@@ -258,6 +281,8 @@ function spawnAmbientParticle(p) {
   p.twinkle = rand(0.35, 1.6);
   p.phase = rand(0, Math.PI * 2);
   p.color = `hsl(${rand(194, 300)} 88% 75%)`;
+  p.cursorOffsetX = 0;
+  p.cursorOffsetY = 0;
   return p;
 }
 
@@ -270,7 +295,41 @@ function spawnForegroundParticle(p, mode) {
   p.phase = rand(0, Math.PI * 2);
   p.hue = rand(190, 320);
   p.color = `hsl(${p.hue} 90% 78%)`;
+  p.cursorOffsetX = 0;
+  p.cursorOffsetY = 0;
   return p;
+}
+
+function applyCursorPull(p, baseX, baseY, dt, radius, maxPull, pullSpeed, releaseSpeed) {
+  const tunedRadius = radius * state.userCursorRange;
+  const tunedMaxPull = maxPull * state.userCursorPull;
+  const tunedPullSpeed = pullSpeed * state.userCursorIn;
+  const tunedReleaseSpeed = releaseSpeed * state.userCursorOut;
+  let targetX = 0;
+  let targetY = 0;
+
+  if (state.pointerActive && tunedRadius > 0.0001 && tunedMaxPull > 0.0001) {
+    const dx = state.pointerScreenX - baseX;
+    const dy = state.pointerScreenY - baseY;
+    const distanceSq = dx * dx + dy * dy;
+    const radiusSq = tunedRadius * tunedRadius;
+
+    if (distanceSq < radiusSq) {
+      const distance = Math.sqrt(Math.max(distanceSq, 0.0001));
+      const t = 1 - distance / tunedRadius;
+      const falloff = t * t * (3 - 2 * t);
+      const pull = tunedMaxPull * falloff;
+      targetX = dx / distance * pull;
+      targetY = dy / distance * pull;
+    }
+  }
+
+  const hasPull = targetX !== 0 || targetY !== 0;
+  const blend = 1 - Math.exp(-(hasPull ? tunedPullSpeed : tunedReleaseSpeed) * dt);
+  p.cursorOffsetX += (targetX - p.cursorOffsetX) * blend;
+  p.cursorOffsetY += (targetY - p.cursorOffsetY) * blend;
+  p.renderX = baseX + p.cursorOffsetX;
+  p.renderY = baseY + p.cursorOffsetY;
 }
 
 function initParticles() {
@@ -347,6 +406,13 @@ function resize() {
   state.baseZ = state.width < 900 ? 980 : 1120;
   state.photoFarZ = state.width < 900 ? 5000 : 5600;
   state.photoNearZ = state.width < 900 ? 180 : 220;
+  const shortSide = Math.min(state.width, state.height);
+  state.cursorRadiusFlow = clamp(shortSide * 0.25, 130, 280);
+  state.cursorRadiusAmbient = clamp(shortSide * 0.19, 100, 210);
+  state.cursorRadiusFront = clamp(shortSide * 0.22, 115, 235);
+  state.cursorPullFlow = clamp(shortSide * 0.02, 8, 18);
+  state.cursorPullAmbient = clamp(shortSide * 0.011, 4, 10);
+  state.cursorPullFront = clamp(shortSide * 0.014, 5, 13);
 
   canvas.width = state.width;
   canvas.height = state.height;
@@ -359,6 +425,12 @@ function resize() {
   state.maxTravel = Math.max(0, maxRow * state.spacing + 2600);
   state.targetTravel = Math.min(state.targetTravel, state.maxTravel);
   state.travel = Math.min(state.travel, state.maxTravel);
+  if (!state.pointerActive) {
+    state.pointerScreenX = state.centerX;
+    state.pointerScreenY = state.horizonY;
+    state.pointerX = 0;
+    state.pointerY = 0;
+  }
   initParticles();
 }
 
@@ -416,10 +488,11 @@ function drawAmbientParticles(dt, time) {
     else if (p.y > state.height + 4) p.y = -3;
 
     const tw = 0.74 + Math.sin(time * 0.00065 * p.twinkle + p.phase) * 0.26;
+    applyCursorPull(p, p.x, p.y, dt, state.cursorRadiusAmbient, state.cursorPullAmbient, 14, 8);
     ctx.globalAlpha = p.alpha * tw * state.userAmbient;
     ctx.fillStyle = p.color;
     const d = p.size < 0.75 ? 0.85 : p.size;
-    ctx.fillRect(p.x - d * 0.5, p.y - d * 0.5, d, d);
+    ctx.fillRect(p.renderX - d * 0.5, p.renderY - d * 0.5, d, d);
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
@@ -464,9 +537,13 @@ function drawFlowParticles(dt) {
     const alpha = p.alpha * (0.52 + progress * 0.58) * (0.9 + p.core * 0.26) * edgeBoost * (0.12 + 0.88 * farAppear) * state.userAlpha;
     const size = (p.size + Math.pow(progress, 1.2) * (0.42 + p.core * 0.35)) * state.userSize;
 
+    applyCursorPull(p, proj.x, proj.y, dt, state.cursorRadiusFlow, state.cursorPullFlow, 12, 7);
+    const renderX = p.renderX;
+    const renderY = p.renderY;
+
     if (!Number.isFinite(p.prevX) || !Number.isFinite(p.prevY)) {
-      p.prevX = proj.x;
-      p.prevY = proj.y;
+      p.prevX = renderX;
+      p.prevY = renderY;
     }
 
     if (p.core > 0.58 && i % 6 === 0) {
@@ -475,7 +552,7 @@ function drawFlowParticles(dt) {
       ctx.lineWidth = Math.max(0.08, size * 0.34);
       ctx.beginPath();
       ctx.moveTo(p.prevX, p.prevY);
-      ctx.lineTo(proj.x, proj.y);
+      ctx.lineTo(renderX, renderY);
       ctx.stroke();
     }
 
@@ -483,15 +560,15 @@ function drawFlowParticles(dt) {
     ctx.fillStyle = p.fillColor;
     if (size < 1.16) {
       const d = Math.max(0.56, size * 1.22);
-      ctx.fillRect(proj.x - d * 0.5, proj.y - d * 0.5, d, d);
+      ctx.fillRect(renderX - d * 0.5, renderY - d * 0.5, d, d);
     } else {
       ctx.beginPath();
-      ctx.arc(proj.x, proj.y, size, 0, Math.PI * 2);
+      ctx.arc(renderX, renderY, size, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    p.prevX = proj.x;
-    p.prevY = proj.y;
+    p.prevX = renderX;
+    p.prevY = renderY;
   }
 
   ctx.globalAlpha = 1;
@@ -593,9 +670,10 @@ function drawForegroundParticles(dt) {
     const progress = 1 - p.depth;
     const alpha = p.alpha * (0.28 + progress * 0.7) * state.userAlpha;
     const size = (p.size + progress * 0.95) * state.userSize;
+    applyCursorPull(p, proj.x, proj.y, dt, state.cursorRadiusFront, state.cursorPullFront, 13, 8);
     frontCtx.globalAlpha = alpha;
     frontCtx.fillStyle = p.color;
-    frontCtx.fillRect(proj.x - size * 0.5, proj.y - size * 0.5, size, size);
+    frontCtx.fillRect(p.renderX - size * 0.5, p.renderY - size * 0.5, size, size);
   }
 
   frontCtx.globalAlpha = 1;
@@ -619,6 +697,13 @@ function onKeydown(event) {
 function onPointerMove(event) {
   state.pointerX = event.clientX / state.width - 0.5;
   state.pointerY = event.clientY / state.height - 0.5;
+  state.pointerScreenX = event.clientX;
+  state.pointerScreenY = event.clientY;
+  state.pointerActive = true;
+}
+
+function onPointerLeave() {
+  state.pointerActive = false;
 }
 
 function bindControls() {
@@ -634,6 +719,10 @@ function bindControls() {
     controlValues.fadeStart.textContent = `${Math.round(Number(controls.fadeStart.value))}`;
     controlValues.fadeRate.textContent = Number(controls.fadeRate.value).toFixed(2);
     controlValues.glowBorder.textContent = `${Math.round(Number(controls.glowBorder.value))}`;
+    controlValues.cursorRange.textContent = Number(controls.cursorRange.value).toFixed(2);
+    controlValues.cursorPull.textContent = Number(controls.cursorPull.value).toFixed(2);
+    controlValues.cursorIn.textContent = Number(controls.cursorIn.value).toFixed(2);
+    controlValues.cursorOut.textContent = Number(controls.cursorOut.value).toFixed(2);
   };
   const apply = () => {
     state.userDensity = Number(controls.density.value);
@@ -646,6 +735,10 @@ function bindControls() {
     state.userFadeStart = Number(controls.fadeStart.value);
     state.userFadeRate = Number(controls.fadeRate.value);
     state.userGlowBorder = Number(controls.glowBorder.value);
+    state.userCursorRange = Number(controls.cursorRange.value);
+    state.userCursorPull = Number(controls.cursorPull.value);
+    state.userCursorIn = Number(controls.cursorIn.value);
+    state.userCursorOut = Number(controls.cursorOut.value);
     corridorEl.style.setProperty("--hover-glow-border", `${state.userGlowBorder}px`);
     updateLabels();
     initParticles();
@@ -704,5 +797,8 @@ window.addEventListener("resize", resize);
 window.addEventListener("wheel", onWheel, { passive: false });
 window.addEventListener("keydown", onKeydown);
 window.addEventListener("pointermove", onPointerMove);
+window.addEventListener("pointerleave", onPointerLeave);
+window.addEventListener("pointercancel", onPointerLeave);
+window.addEventListener("blur", onPointerLeave);
 
 requestAnimationFrame(tick);

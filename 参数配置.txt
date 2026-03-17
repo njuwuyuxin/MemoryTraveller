@@ -1,2 +1,6 @@
 fade start = 740
 fade rate = 1.60
+cursor range = 0.50
+cursor pull = 0.20
+follow ease = 1.00
+return ease = 1.50
