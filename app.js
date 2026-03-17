@@ -31,7 +31,8 @@ const controls = {
   ambient: document.getElementById("ctl-ambient"),
   cardMax: document.getElementById("ctl-cardmax"),
   fadeStart: document.getElementById("ctl-fadestart"),
-  fadeRate: document.getElementById("ctl-faderate")
+  fadeRate: document.getElementById("ctl-faderate"),
+  glowBorder: document.getElementById("ctl-glowborder")
 };
 
 const controlValues = {
@@ -43,7 +44,8 @@ const controlValues = {
   ambient: document.getElementById("val-ambient"),
   cardMax: document.getElementById("val-cardmax"),
   fadeStart: document.getElementById("val-fadestart"),
-  fadeRate: document.getElementById("val-faderate")
+  fadeRate: document.getElementById("val-faderate"),
+  glowBorder: document.getElementById("val-glowborder")
 };
 
 const stars = [];
@@ -81,6 +83,7 @@ const state = {
   userCardMax: 2200,
   userFadeStart: 1200,
   userFadeRate: 1.4,
+  userGlowBorder: 20,
   maxTravel: 0,
   pointerX: 0,
   pointerY: 0
@@ -175,6 +178,15 @@ function createCard(meta) {
       <p>${meta.text}</p>
     </figcaption>
   `;
+  const photoEl = figure.querySelector(".memory-photo");
+  if (photoEl) {
+    photoEl.addEventListener("pointerenter", () => {
+      figure.classList.add("is-hovered");
+    });
+    photoEl.addEventListener("pointerleave", () => {
+      figure.classList.remove("is-hovered");
+    });
+  }
   corridorEl.appendChild(figure);
   return { meta, element: figure };
 }
@@ -499,6 +511,7 @@ function renderCards() {
     if (z < state.nearClipZ || z > state.photoFarZ + 120) {
       card.element.style.opacity = "0";
       card.element.style.pointerEvents = "none";
+      card.element.classList.remove("is-hovered");
       return;
     }
 
@@ -541,6 +554,9 @@ function renderCards() {
     card.element.style.zIndex = `${zIndex}`;
     card.element.style.transform = `translate3d(${proj.x}px, ${proj.y}px, 0) translate(-50%, -50%) rotate(${angle}deg)`;
     card.element.style.pointerEvents = opacity < 0.42 ? "none" : "auto";
+    if (opacity < 0.42) {
+      card.element.classList.remove("is-hovered");
+    }
 
     const score = Math.abs(z - 920);
     if (score < focusScore && z > state.photoNearZ + 120 && z < 3000 && opacity > 0.6) {
@@ -617,6 +633,7 @@ function bindControls() {
     controlValues.cardMax.textContent = `${Math.round(Number(controls.cardMax.value))}`;
     controlValues.fadeStart.textContent = `${Math.round(Number(controls.fadeStart.value))}`;
     controlValues.fadeRate.textContent = Number(controls.fadeRate.value).toFixed(2);
+    controlValues.glowBorder.textContent = `${Math.round(Number(controls.glowBorder.value))}`;
   };
   const apply = () => {
     state.userDensity = Number(controls.density.value);
@@ -628,6 +645,8 @@ function bindControls() {
     state.userCardMax = Number(controls.cardMax.value);
     state.userFadeStart = Number(controls.fadeStart.value);
     state.userFadeRate = Number(controls.fadeRate.value);
+    state.userGlowBorder = Number(controls.glowBorder.value);
+    corridorEl.style.setProperty("--hover-glow-border", `${state.userGlowBorder}px`);
     updateLabels();
     initParticles();
   };
